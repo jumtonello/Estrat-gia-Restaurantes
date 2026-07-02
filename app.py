@@ -1,5 +1,8 @@
 # app.py - Sistema Estratégico para Restaurantes com Autenticação Simples (Streamlit)
+# Suporta múltiplos restaurantes com persistência em database.json
 
+import os
+import json
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -10,6 +13,75 @@ from dateutil.relativedelta import relativedelta
 # =============================================================================
 VALID_USER = "admin"
 VALID_PASSWORD = "admin"
+
+DATABASE_FILE = "database.json"
+
+DEFAULT_SKILLS = [
+    {"Skill": "Comunicação", "Nível": 3, "Última Avaliação": "2024-01-15"},
+    {"Skill": "Liderança", "Nível": 4, "Última Avaliação": "2024-02-10"},
+    {"Skill": "Pensamento Crítico", "Nível": 2, "Última Avaliação": "2024-03-05"},
+    {"Skill": "Trabalho em Equipe", "Nível": 5, "Última Avaliação": "2024-01-20"},
+    {"Skill": "Gestão de Tempo", "Nível": 3, "Última Avaliação": "2024-02-25"},
+]
+
+
+def empty_restaurant_data():
+    """Retorna a estrutura padrão de dados para um restaurante."""
+    return {
+        "onboarding_data": {},
+        "mercado_data": {},
+        "estrategia_data": {},
+        "identidade_data": {},
+        "performance_data": {},
+        "calendario_posts": [],
+        "skills_data": [dict(s) for s in DEFAULT_SKILLS],
+    }
+
+
+def load_database():
+    """Carrega o arquivo database.json. Retorna estrutura vazia se não existir."""
+    if os.path.exists(DATABASE_FILE):
+        try:
+            with open(DATABASE_FILE, "r", encoding="utf-8") as f:
+                db = json.load(f)
+            if "restaurants" not in db or not isinstance(db["restaurants"], dict):
+                db["restaurants"] = {}
+            return db
+        except (json.JSONDecodeError, OSError):
+            return {"restaurants": {}}
+    return {"restaurants": {}}
+
+
+def save_database(db):
+    """Salva a estrutura de dados no arquivo database.json."""
+    with open(DATABASE_FILE, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
+
+
+def apply_restaurant_data(name):
+    """Carrega os dados do restaurante selecionado para o session_state."""
+    db = load_database()
+    data = db["restaurants"].get(name, empty_restaurant_data())
+    for key, default in empty_restaurant_data().items():
+        st.session_state[key] = data.get(key, default)
+
+
+def persist_current_restaurant():
+    """Persiste os dados atuais do session_state no database.json."""
+    name = st.session_state.get("current_restaurant")
+    if not name:
+        return
+    db = load_database()
+    db["restaurants"][name] = {
+        key: st.session_state.get(key, default)
+        for key, default in empty_restaurant_data().items()
+    }
+    save_database(db)
+
+
+def safe_index(options, value, default=0):
+    """Retorna o índice seguro de um valor em uma lista de opções."""
+    return options.index(value) if value in options else default
 
 
 def check_password():
@@ -48,34 +120,75 @@ if not check_password():
 # -----------------------------------------------------------------------------
 # Inicialização do session_state para dados dos módulos
 # -----------------------------------------------------------------------------
-if "onboarding_data" not in st.session_state:
-    st.session_state["onboarding_data"] = {}
-if "mercado_data" not in st.session_state:
-    st.session_state["mercado_data"] = {}
-if "estrategia_data" not in st.session_state:
-    st.session_state["estrategia_data"] = {}
-if "identidade_data" not in st.session_state:
-    st.session_state["identidade_data"] = {}
-if "performance_data" not in st.session_state:
-    st.session_state["performance_data"] = {}
-if "calendario_posts" not in st.session_state:
-    st.session_state["calendario_posts"] = []
+if "current_restaurant" not in st.session_state:
+    st.session_state["current_restaurant"] = None
+
+for key, default in empty_restaurant_data().items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # -----------------------------------------------------------------------------
-# Dados de exemplo das Skills
+# Gerenciamento de múltiplos restaurantes com persistência
 # -----------------------------------------------------------------------------
-SKILLS_DATA = [
-    {"Skill": "Comunicação", "Nível": 3, "Última Avaliação": "2024-01-15"},
-    {"Skill": "Liderança", "Nível": 4, "Última Avaliação": "2024-02-10"},
-    {"Skill": "Pensamento Crítico", "Nível": 2, "Última Avaliação": "2024-03-05"},
-    {"Skill": "Trabalho em Equipe", "Nível": 5, "Última Avaliação": "2024-01-20"},
-    {"Skill": "Gestão de Tempo", "Nível": 3, "Última Avaliação": "2024-02-25"},
-]
+db = load_database()
+restaurant_names = list(db["restaurants"].keys())
 
+# Carregar automaticamente o primeiro restaurante disponível ao iniciar
+if st.session_state["current_restaurant"] is None and restaurant_names:
+    st.session_state["current_restaurant"] = restaurant_names[0]
+    apply_restaurant_data(restaurant_names[0])
+    st.rerun()
 
+# Seletor de restaurante na barra lateral
+options = restaurant_names + ["Criar Novo Restaurante"]
+current = st.session_state.get("current_restaurant")
+if current and current in restaurant_names:
+    default_index = options.index(current)
+else:
+    default_index = len(options) - 1
+
+st.sidebar.title("Restaurantes")
+selected = st.sidebar.selectbox(
+    "Selecione um restaurante",
+    options,
+    index=default_index,
+    key="restaurant_selector",
+)
+
+if selected == "Criar Novo Restaurante":
+    st.sidebar.markdown("### Criar Novo Restaurante")
+    novo_nome = st.sidebar.text_input(
+        "Nome do novo restaurante",
+        key="novo_restaurante_nome",
+    )
+    if st.sidebar.button("Criar Restaurante"):
+        if not novo_nome.strip():
+            st.sidebar.error("Informe um nome válido.")
+        elif novo_nome in db["restaurants"]:
+            st.sidebar.error("Já existe um restaurante com esse nome.")
+        else:
+            db["restaurants"][novo_nome] = empty_restaurant_data()
+            save_database(db)
+            st.session_state["current_restaurant"] = novo_nome
+            apply_restaurant_data(novo_nome)
+            st.rerun()
+
+    st.title("🍽️ Sistema Estratégico para Restaurantes")
+    st.info("Crie um novo restaurante ou selecione um existente na barra lateral para começar.")
+    st.stop()
+
+# Troca de restaurante existente: carrega os dados salvos e recarrega a página
+if current != selected:
+    st.session_state["current_restaurant"] = selected
+    apply_restaurant_data(selected)
+    st.rerun()
+
+# -----------------------------------------------------------------------------
+# Funções auxiliares de Skills
+# -----------------------------------------------------------------------------
 def carregar_skills():
-    """Retorna um DataFrame com as skills cadastradas."""
-    return pd.DataFrame(SKILLS_DATA)
+    """Retorna um DataFrame com as skills cadastradas do restaurante atual."""
+    return pd.DataFrame(st.session_state.get("skills_data", []))
 
 
 def gerar_relatorio_skills(df):
@@ -84,8 +197,9 @@ def gerar_relatorio_skills(df):
     linhas.append("# Relatório de Skills\n")
     linhas.append(f"Data de geração: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n")
     linhas.append(f"Total de skills avaliadas: {len(df)}\n")
-    nivel_medio = df["Nível"].mean()
-    linhas.append(f"Nível médio: {nivel_medio:.2f}\n")
+    if len(df) > 0:
+        nivel_medio = df["Nível"].mean()
+        linhas.append(f"Nível médio: {nivel_medio:.2f}\n")
     linhas.append("\n## Detalhamento\n")
     for _, row in df.iterrows():
         linhas.append(f"- {row['Skill']}: Nível {row['Nível']} (Última Avaliação: {row['Última Avaliação']})")
@@ -106,6 +220,9 @@ def sugestao_ia(skill, nivel):
 # Layout principal - Navegação entre módulos estratégicos
 # -----------------------------------------------------------------------------
 st.title("🍽️ Sistema Estratégico para Restaurantes")
+if current:
+    st.caption(f"Restaurante atual: **{current}**")
+
 st.sidebar.title("Navegação")
 opcao = st.sidebar.radio(
     "Selecione um módulo:",
@@ -149,7 +266,7 @@ if opcao == "Apresentação":
         "das competências da equipe, além de obter sugestões de desenvolvimento."
     )
 
-    st.info("Use o menu lateral para navegar entre os módulos.")
+    st.info("Use o menu lateral para navegar entre os módulos. Os dados são salvos automaticamente em database.json.")
 
 # =========================================================================
 # MÓDULO 1 — ONBOARDING / DNA
@@ -222,8 +339,10 @@ elif opcao == "2. Mercado / Persona":
         st.subheader("Persona / Público-Alvo")
         nome_persona = st.text_input("Nome da Persona", value=st.session_state["mercado_data"].get("nome_persona", ""))
         idade_persona = st.number_input("Idade", min_value=0, max_value=120, value=st.session_state["mercado_data"].get("idade_persona", 30))
-        genero_persona = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro", "Indiferente"], index=["Masculino", "Feminino", "Outro", "Indiferente"].index(st.session_state["mercado_data"].get("genero_persona", "Indiferente")))
-        renda_persona = st.selectbox("Faixa de Renda", ["Baixa", "Média", "Média-Alta", "Alta"], index=["Baixa", "Média", "Média-Alta", "Alta"].index(st.session_state["mercado_data"].get("renda_persona", "Média")))
+        genero_options = ["Masculino", "Feminino", "Outro", "Indiferente"]
+        genero_persona = st.selectbox("Gênero", genero_options, index=safe_index(genero_options, st.session_state["mercado_data"].get("genero_persona", "Indiferente")))
+        renda_options = ["Baixa", "Média", "Média-Alta", "Alta"]
+        renda_persona = st.selectbox("Faixa de Renda", renda_options, index=safe_index(renda_options, st.session_state["mercado_data"].get("renda_persona", "Média")))
         ocupacao_persona = st.text_input("Ocupação", value=st.session_state["mercado_data"].get("ocupacao_persona", ""))
         interesses_persona = st.text_area("Interesses", value=st.session_state["mercado_data"].get("interesses_persona", ""))
         comportamento_persona = st.text_area("Comportamento Digital", value=st.session_state["mercado_data"].get("comportamento_persona", ""))
@@ -270,6 +389,9 @@ elif opcao == "3. Estratégia Editorial":
     st.header("📝 Módulo 3: Estratégia Editorial")
     st.write("Planeje os conteúdos e canais de comunicação.")
 
+    freq_options = ["Diária", "3x/semana", "2x/semana", "Semanal", "Quinzenal"]
+    objetivo_options = ["Aumentar Reconhecimento", "Gerar Engajamento", "Atrair Clientes", "Fidelizar Clientes", "Vendas Online"]
+
     with st.form("form_estrategia"):
         st.subheader("Canais de Comunicação")
         canal_instagram = st.checkbox("Instagram", value=st.session_state["estrategia_data"].get("canal_instagram", True))
@@ -281,9 +403,9 @@ elif opcao == "3. Estratégia Editorial":
         canal_blog = st.checkbox("Blog / Site", value=st.session_state["estrategia_data"].get("canal_blog", False))
 
         st.subheader("Frequência de Postagem")
-        freq_instagram = st.selectbox("Frequência Instagram", ["Diária", "3x/semana", "2x/semana", "Semanal", "Quinzenal"], index=0)
-        freq_facebook = st.selectbox("Frequência Facebook", ["Diária", "3x/semana", "2x/semana", "Semanal", "Quinzenal"], index=2)
-        freq_tiktok = st.selectbox("Frequência TikTok", ["Diária", "3x/semana", "2x/semana", "Semanal", "Quinzenal"], index=0)
+        freq_instagram = st.selectbox("Frequência Instagram", freq_options, index=safe_index(freq_options, st.session_state["estrategia_data"].get("freq_instagram", "Diária")))
+        freq_facebook = st.selectbox("Frequência Facebook", freq_options, index=safe_index(freq_options, st.session_state["estrategia_data"].get("freq_facebook", "2x/semana")))
+        freq_tiktok = st.selectbox("Frequência TikTok", freq_options, index=safe_index(freq_options, st.session_state["estrategia_data"].get("freq_tiktok", "Diária")))
 
         st.subheader("Tipos de Conteúdo")
         conteudo_pratos = st.checkbox("Pratos / Cardápio", value=st.session_state["estrategia_data"].get("conteudo_pratos", True))
@@ -294,7 +416,7 @@ elif opcao == "3. Estratégia Editorial":
         conteudo_eventos = st.checkbox("Eventos / Novidades", value=st.session_state["estrategia_data"].get("conteudo_eventos", True))
 
         st.subheader("Objetivos")
-        objetivo_principal = st.selectbox("Objetivo Principal", ["Aumentar Reconhecimento", "Gerar Engajamento", "Atrair Clientes", "Fidelizar Clientes", "Vendas Online"], index=0)
+        objetivo_principal = st.selectbox("Objetivo Principal", objetivo_options, index=safe_index(objetivo_options, st.session_state["estrategia_data"].get("objetivo_principal", "Aumentar Reconhecimento")))
         meta_seguidores = st.number_input("Meta de Seguidores (mensal)", min_value=0, value=st.session_state["estrategia_data"].get("meta_seguidores", 100))
         meta_engajamento = st.slider("Meta de Engajamento (%)", 0, 100, st.session_state["estrategia_data"].get("meta_engajamento", 5))
 
@@ -338,19 +460,26 @@ elif opcao == "4. Identidade / Voz":
     st.header("🎨 Módulo 4: Identidade / Voz")
     st.write("Estabeleça o tom de voz e a identidade visual do restaurante.")
 
+    tom_options = ["Formal", "Descontraído", "Amigável", "Sofisticado", "Divertido", "Inspirador"]
+    tom_sec_options = ["Nenhum"] + tom_options
+    linguagem_options = ["Simples e Acessível", "Técnica", "Regional/Gírias", "Premium/Refinada"]
+    pronome_options = ["Você", "Tu", "Vós"]
+    fotografia_options = ["Minimalista", "Rústico", "Gourmet/Profissional", "Vibrante/Colorido", "Dark/Mood"]
+    fonte_options = ["Serifada (Clássica)", "Sem Serifa (Moderna)", "Manuscrita (Artesanal)", "Display (Impactante)"]
+
     with st.form("form_identidade"):
         st.subheader("Tom de Voz")
-        tom_voz = st.selectbox("Tom de Voz Principal", ["Formal", "Descontraído", "Amigável", "Sofisticado", "Divertido", "Inspirador"], index=2)
-        tom_secundario = st.selectbox("Tom de Voz Secundário", ["Nenhum", "Formal", "Descontraído", "Amigável", "Sofisticado", "Divertido", "Inspirador"], index=0)
-        linguagem = st.selectbox("Linguagem", ["Simples e Acessível", "Técnica", "Regional/Gírias", "Premium/Refinada"], index=0)
-        pronome = st.selectbox("Tratamento", ["Você", "Tu", "Vós"], index=0)
+        tom_voz = st.selectbox("Tom de Voz Principal", tom_options, index=safe_index(tom_options, st.session_state["identidade_data"].get("tom_voz", "Amigável")))
+        tom_secundario = st.selectbox("Tom de Voz Secundário", tom_sec_options, index=safe_index(tom_sec_options, st.session_state["identidade_data"].get("tom_secundario", "Nenhum")))
+        linguagem = st.selectbox("Linguagem", linguagem_options, index=safe_index(linguagem_options, st.session_state["identidade_data"].get("linguagem", "Simples e Acessível")))
+        pronome = st.selectbox("Tratamento", pronome_options, index=safe_index(pronome_options, st.session_state["identidade_data"].get("pronome", "Você")))
 
         st.subheader("Identidade Visual")
         cor_primaria = st.color_picker("Cor Primária", value=st.session_state["identidade_data"].get("cor_primaria", "#FF6B35"))
         cor_secundaria = st.color_picker("Cor Secundária", value=st.session_state["identidade_data"].get("cor_secundaria", "#F7C59F"))
         cor_destaque = st.color_picker("Cor de Destaque", value=st.session_state["identidade_data"].get("cor_destaque", "#004E89"))
-        estilo_fotografia = st.selectbox("Estilo de Fotografia", ["Minimalista", "Rústico", "Gourmet/Profissional", "Vibrante/Colorido", "Dark/Mood"], index=2)
-        fonte_estilo = st.selectbox("Estilo de Fonte", ["Serifada (Clássica)", "Sem Serifa (Moderna)", "Manuscrita (Artesanal)", "Display (Impactante)"], index=1)
+        estilo_fotografia = st.selectbox("Estilo de Fotografia", fotografia_options, index=safe_index(fotografia_options, st.session_state["identidade_data"].get("estilo_fotografia", "Gourmet/Profissional")))
+        fonte_estilo = st.selectbox("Estilo de Fonte", fonte_options, index=safe_index(fonte_options, st.session_state["identidade_data"].get("fonte_estilo", "Sem Serifa (Moderna)")))
 
         st.subheader("Palavras-Chave e Conceitos")
         palavras_chave = st.text_area("Palavras-Chave da Marca", value=st.session_state["identidade_data"].get("palavras_chave", ""))
@@ -409,6 +538,8 @@ elif opcao == "5. Performance / Calendário":
 
     tab_performance, tab_calendario = st.tabs(["📊 Performance", "📅 Calendário Editorial"])
 
+    periodo_options = ["Última semana", "Últimos 15 dias", "Último mês", "Últimos 3 meses"]
+
     # --- Tab Performance ---
     with tab_performance:
         st.subheader("Métricas de Performance")
@@ -426,7 +557,7 @@ elif opcao == "5. Performance / Calendário":
                 cliques_link = st.number_input("Cliques no Link", min_value=0, value=st.session_state["performance_data"].get("cliques_link", 0))
                 conversao_delivery = st.slider("Conversão Delivery (%)", 0, 100, st.session_state["performance_data"].get("conversao_delivery", 0))
 
-            periodo_referencia = st.selectbox("Período de Referência", ["Última semana", "Últimos 15 dias", "Último mês", "Últimos 3 meses"], index=2)
+            periodo_referencia = st.selectbox("Período de Referência", periodo_options, index=safe_index(periodo_options, st.session_state["performance_data"].get("periodo_referencia", "Último mês")))
             observacoes = st.text_area("Observações", value=st.session_state["performance_data"].get("observacoes", ""))
 
             submitted = st.form_submit_button("Salvar Performance")
@@ -508,7 +639,10 @@ elif opcao == "Skills":
     st.write("Gerencie as competências da equipe do restaurante.")
 
     df = carregar_skills()
-    st.dataframe(df, use_container_width=True)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Nenhuma skill cadastrada ainda.")
 
     st.subheader("➕ Adicionar nova Skill")
     with st.form("form_skill"):
@@ -517,7 +651,7 @@ elif opcao == "Skills":
         data_avaliacao = st.date_input("Data da Avaliação", datetime.now())
         adicionar = st.form_submit_button("Adicionar")
         if adicionar and nova_skill:
-            SKILLS_DATA.append(
+            st.session_state["skills_data"].append(
                 {
                     "Skill": nova_skill,
                     "Nível": novo_nivel,
@@ -553,7 +687,13 @@ elif opcao == "Skills":
     with col_exp2:
         st.download_button(
             label="⬇️ Baixar dados (.csv)",
-            data=df.to_csv(index=False).encode("utf-8"),
+            data=df.to_csv(index=False).encode("utf-8") if not df.empty else b"",
             file_name=f"skills_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
         )
+
+# -----------------------------------------------------------------------------
+# Persistência automática dos dados do restaurante atual ao final da execução
+# -----------------------------------------------------------------------------
+if st.session_state.get("current_restaurant"):
+    persist_current_restaurant()
