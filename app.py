@@ -1,5 +1,6 @@
 # app.py - Sistema Estratégico para Restaurantes com Autenticação Simples (Streamlit)
 # Suporta múltiplos restaurantes com persistência em database.json
+# Inclui botão 'Processar com IA' em cada módulo estratégico
 
 import os
 import json
@@ -109,6 +110,138 @@ def check_password():
                 st.error("Usuário ou senha incorretos.")
 
     return False
+
+
+def processar_com_ia(modulo, dados):
+    """
+    Processa os dados do módulo informado utilizando as informações salvas
+    no session_state do restaurante selecionado e retorna uma análise
+    estratégica simulada por IA.
+    """
+    restaurante = st.session_state.get("current_restaurant", "Restaurante")
+    linhas = []
+    linhas.append(f"🤖 Análise de IA — {modulo}")
+    linhas.append(f"Restaurante: {restaurante}")
+    linhas.append(f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    linhas.append("")
+
+    if not dados:
+        linhas.append("⚠️ Não há dados salvos para este módulo.")
+        linhas.append("Preencha e salve o formulário antes de processar com IA.")
+        return "\n".join(linhas)
+
+    if modulo == "Onboarding / DNA":
+        linhas.append("📌 Resumo do DNA do Restaurante:")
+        linhas.append(f"- Nome: {dados.get('nome_restaurante', 'N/D')}")
+        linhas.append(f"- Cozinha: {dados.get('tipo_cozinha', 'N/D')}")
+        linhas.append(f"- Localização: {dados.get('cidade', 'N/D')}/{dados.get('estado', 'N/D')}")
+        linhas.append(f"- Diferenciais: {dados.get('diferenciais', 'N/D')}")
+        linhas.append("")
+        linhas.append("💡 Recomendações de IA:")
+        linhas.append("- Destaque os pratos de assinatura nas redes sociais.")
+        linhas.append("- Use a história do restaurante para criar conexão emocional.")
+        linhas.append("- Reforce os diferenciais competitivos em campanhas sazonais.")
+
+    elif modulo == "Mercado / Persona":
+        linhas.append("🎯 Análise de Mercado e Persona:")
+        linhas.append(f"- Persona: {dados.get('nome_persona', 'N/D')} ({dados.get('idade_persona', 'N/D')} anos)")
+        linhas.append(f"- Renda: {dados.get('renda_persona', 'N/D')}")
+        linhas.append(f"- Posicionamento: {dados.get('posicionamento', 'N/D')}")
+        linhas.append("")
+        linhas.append("💡 Recomendações de IA:")
+        linhas.append("- Direcione conteúdos para os interesses da persona definida.")
+        linhas.append("- Explore a vantagem competitiva nas mensagens principais.")
+        linhas.append("- Crie ações específicas para as oportunidades identificadas.")
+
+    elif modulo == "Estratégia Editorial":
+        canais = []
+        if dados.get("canal_instagram"): canais.append("Instagram")
+        if dados.get("canal_facebook"): canais.append("Facebook")
+        if dados.get("canal_tiktok"): canais.append("TikTok")
+        if dados.get("canal_youtube"): canais.append("YouTube")
+        if dados.get("canal_whatsapp"): canais.append("WhatsApp")
+        linhas.append("📝 Análise da Estratégia Editorial:")
+        linhas.append(f"- Canais ativos: {', '.join(canais) if canais else 'Nenhum'}")
+        linhas.append(f"- Objetivo principal: {dados.get('objetivo_principal', 'N/D')}")
+        linhas.append(f"- Meta de seguidores: {dados.get('meta_seguidores', 0)}")
+        linhas.append(f"- Meta de engajamento: {dados.get('meta_engajamento', 0)}%")
+        linhas.append("")
+        linhas.append("💡 Recomendações de IA:")
+        linhas.append("- Mantenha consistência na frequência de postagem em cada canal.")
+        linhas.append("- Diversifique os tipos de conteúdo para manter o engajamento.")
+        linhas.append("- Acompanhe semanalmente a evolução das metas definidas.")
+
+    elif modulo == "Identidade / Voz":
+        linhas.append("🎨 Análise de Identidade / Voz:")
+        linhas.append(f"- Tom de voz: {dados.get('tom_voz', 'N/D')}")
+        linhas.append(f"- Linguagem: {dados.get('linguagem', 'N/D')}")
+        linhas.append(f"- Slogan: {dados.get('slogan', 'N/D')}")
+        linhas.append(f"- Palavras-chave: {dados.get('palavras_chave', 'N/D')}")
+        linhas.append("")
+        linhas.append("💡 Recomendações de IA:")
+        linhas.append("- Padronize o tom de voz em todos os pontos de contato.")
+        linhas.append("- Use as cores definidas como base para todo material visual.")
+        linhas.append("- Evite as palavras listadas e reforce as palavras-chave da marca.")
+
+    elif modulo == "Performance / Calendário":
+        linhas.append("📈 Análise de Performance:")
+        linhas.append(f"- Seguidores Instagram: {dados.get('seguidores_instagram', 0)}")
+        linhas.append(f"- Engajamento médio: {dados.get('engajamento_medio', 0)}%")
+        linhas.append(f"- Posts no mês: {dados.get('posts_mes', 0)}")
+        linhas.append(f"- Conversão delivery: {dados.get('conversao_delivery', 0)}%")
+        linhas.append("")
+        linhas.append("💡 Recomendações de IA:")
+        linhas.append("- Identifique os canais com melhor desempenho e invista mais neles.")
+        linhas.append("- Ajuste a frequência de posts com base no engajamento observado.")
+        linhas.append("- Use o calendário editorial para garantir consistência e planejamento.")
+
+    else:
+        linhas.append("Módulo não reconhecido para processamento de IA.")
+
+    return "\n".join(linhas)
+
+
+def gerar_apresentacao_geral():
+    """Consolida os dados de todos os módulos para uma apresentação final."""
+    restaurante = st.session_state.get("current_restaurant", "Restaurante")
+    onboarding = st.session_state.get("onboarding_data", {})
+    mercado = st.session_state.get("mercado_data", {})
+    estrategia = st.session_state.get("estrategia_data", {})
+    identidade = st.session_state.get("identidade_data", {})
+    performance = st.session_state.get("performance_data", {})
+
+    linhas = []
+    linhas.append(f"# Apresentação Estratégica — {restaurante}")
+    linhas.append(f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    linhas.append("")
+    linhas.append("## 1. Onboarding / DNA")
+    linhas.append(f"- Cozinha: {onboarding.get('tipo_cozinha', 'N/D')}")
+    linhas.append(f"- Cidade: {onboarding.get('cidade', 'N/D')}/{onboarding.get('estado', 'N/D')}")
+    linhas.append(f"- Diferenciais: {onboarding.get('diferenciais', 'N/D')}")
+    linhas.append("")
+    linhas.append("## 2. Mercado / Persona")
+    linhas.append(f"- Persona: {mercado.get('nome_persona', 'N/D')}")
+    linhas.append(f"- Posicionamento: {mercado.get('posicionamento', 'N/D')}")
+    linhas.append(f"- Proposta de valor: {mercado.get('proposta_valor', 'N/D')}")
+    linhas.append("")
+    linhas.append("## 3. Estratégia Editorial")
+    linhas.append(f"- Objetivo: {estrategia.get('objetivo_principal', 'N/D')}")
+    linhas.append(f"- Meta de seguidores: {estrategia.get('meta_seguidores', 0)}")
+    linhas.append(f"- Meta de engajamento: {estrategia.get('meta_engajamento', 0)}%")
+    linhas.append("")
+    linhas.append("## 4. Identidade / Voz")
+    linhas.append(f"- Tom de voz: {identidade.get('tom_voz', 'N/D')}")
+    linhas.append(f"- Slogan: {identidade.get('slogan', 'N/D')}")
+    linhas.append(f"- Palavras-chave: {identidade.get('palavras_chave', 'N/D')}")
+    linhas.append("")
+    linhas.append("## 5. Performance / Calendário")
+    linhas.append(f"- Seguidores Instagram: {performance.get('seguidores_instagram', 0)}")
+    linhas.append(f"- Engajamento médio: {performance.get('engajamento_medio', 0)}%")
+    linhas.append(f"- Posts no mês: {performance.get('posts_mes', 0)}")
+    linhas.append("")
+    linhas.append("---")
+    linhas.append("Apresentação gerada pelo Sistema Estratégico para Restaurantes.")
+    return "\n".join(linhas)
 
 
 # =============================================================================
@@ -221,7 +354,7 @@ def sugestao_ia(skill, nivel):
 # -----------------------------------------------------------------------------
 st.title("🍽️ Sistema Estratégico para Restaurantes")
 if current:
-    st.caption(f"Restaurante atual: **{current}**")
+    st.caption(f"Restaurante atual: **{current}")
 
 st.sidebar.title("Navegação")
 opcao = st.sidebar.radio(
@@ -328,6 +461,11 @@ elif opcao == "1. Onboarding / DNA":
         st.subheader("📋 Resumo do Onboarding")
         st.json(st.session_state["onboarding_data"])
 
+    st.subheader("🤖 Processar com IA")
+    if st.button("Processar com IA", key="btn_ia_onboarding"):
+        resultado = processar_com_ia("Onboarding / DNA", st.session_state.get("onboarding_data", {}))
+        st.text_area("Resultado da IA", value=resultado, height=300, key="ia_result_onboarding")
+
 # =========================================================================
 # MÓDULO 2 — MERCADO / PERSONA
 # =========================================================================
@@ -381,6 +519,11 @@ elif opcao == "2. Mercado / Persona":
     if st.session_state["mercado_data"]:
         st.subheader("📋 Resumo de Mercado / Persona")
         st.json(st.session_state["mercado_data"])
+
+    st.subheader("🤖 Processar com IA")
+    if st.button("Processar com IA", key="btn_ia_mercado"):
+        resultado = processar_com_ia("Mercado / Persona", st.session_state.get("mercado_data", {}))
+        st.text_area("Resultado da IA", value=resultado, height=300, key="ia_result_mercado")
 
 # =========================================================================
 # MÓDULO 3 — ESTRATÉGIA EDITORIAL
@@ -452,6 +595,11 @@ elif opcao == "3. Estratégia Editorial":
     if st.session_state["estrategia_data"]:
         st.subheader("📋 Resumo da Estratégia Editorial")
         st.json(st.session_state["estrategia_data"])
+
+    st.subheader("🤖 Processar com IA")
+    if st.button("Processar com IA", key="btn_ia_estrategia"):
+        resultado = processar_com_ia("Estratégia Editorial", st.session_state.get("estrategia_data", {}))
+        st.text_area("Resultado da IA", value=resultado, height=300, key="ia_result_estrategia")
 
 # =========================================================================
 # MÓDULO 4 — IDENTIDADE / VOZ
@@ -529,6 +677,11 @@ elif opcao == "4. Identidade / Voz":
         with col3:
             st.color_picker("Destaque", st.session_state["identidade_data"]["cor_destaque"])
 
+    st.subheader("🤖 Processar com IA")
+    if st.button("Processar com IA", key="btn_ia_identidade"):
+        resultado = processar_com_ia("Identidade / Voz", st.session_state.get("identidade_data", {}))
+        st.text_area("Resultado da IA", value=resultado, height=300, key="ia_result_identidade")
+
 # =========================================================================
 # MÓDULO 5 — PERFORMANCE / CALENDÁRIO
 # =========================================================================
@@ -536,7 +689,7 @@ elif opcao == "5. Performance / Calendário":
     st.header("📈 Módulo 5: Performance / Calendário")
     st.write("Acompanhe métricas e organize o calendário editorial.")
 
-    tab_performance, tab_calendario = st.tabs(["📊 Performance", "📅 Calendário Editorial"])
+    tab_performance, tab_calendario, tab_apresentacao = st.tabs(["📊 Performance", "📅 Calendário Editorial", "🎤 Apresentação"])
 
     periodo_options = ["Última semana", "Últimos 15 dias", "Último mês", "Últimos 3 meses"]
 
@@ -579,6 +732,11 @@ elif opcao == "5. Performance / Calendário":
         if st.session_state["performance_data"]:
             st.subheader("📋 Resumo de Performance")
             st.json(st.session_state["performance_data"])
+
+        st.subheader("🤖 Processar com IA")
+        if st.button("Processar com IA", key="btn_ia_performance"):
+            resultado = processar_com_ia("Performance / Calendário", st.session_state.get("performance_data", {}))
+            st.text_area("Resultado da IA", value=resultado, height=300, key="ia_result_performance")
 
     # --- Tab Calendário ---
     with tab_calendario:
@@ -630,6 +788,20 @@ elif opcao == "5. Performance / Calendário":
             )
         else:
             st.info("Nenhum post adicionado ao calendário ainda.")
+
+    # --- Tab Apresentação ---
+    with tab_apresentacao:
+        st.subheader("🎤 Apresentação Final")
+        st.write("Gere uma apresentação consolidada de todos os módulos estratégicos do restaurante atual.")
+        if st.button("Gerar Apresentação", key="btn_apresentacao"):
+            apresentacao = gerar_apresentacao_geral()
+            st.text_area("Apresentação Estratégica", value=apresentacao, height=500, key="apresentacao_result")
+            st.download_button(
+                label="⬇️ Baixar apresentação (.txt)",
+                data=apresentacao,
+                file_name=f"apresentacao_{st.session_state.get('current_restaurant', 'restaurante')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+            )
 
 # =========================================================================
 # SKILLS
